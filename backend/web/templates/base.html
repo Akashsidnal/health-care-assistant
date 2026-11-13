@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>{% block title %}MediCare Cloud - Smart Healthcare Monitoring{% endblock %}</title>
+  
+  <!-- PWA Manifest & Mobile Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0284c7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <!-- Local Offline Bundles -->
+  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/vendor/bootstrap-icons.min.css">
+  <script src="/static/vendor/chart.umd.min.js"></script>
+  
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="/static/css/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
+    <div class="container">
+      <a class="navbar-brand" id="brandLink" href="/login">
+        <i class="bi bi-heart-pulse-fill text-danger fs-4"></i>
+        <span>MediCare Cloud</span>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1 fs-7" id="navRoleBadge">Portal</span>
+      </a>
+
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarMain">
+        <!-- Dynamic Nav Links based on Role -->
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3 gap-1" id="navLinksContainer">
+          <!-- Populated by JS -->
+        </ul>
+
+        <div class="d-flex align-items-center gap-2" id="navUserSection">
+          <div class="d-flex align-items-center gap-2">
+            <div class="avatar-circle" id="navAvatar">--</div>
+            <div class="d-none d-md-block text-start">
+              <div class="fw-bold fs-7 lh-sm" id="navUserName">User</div>
+              <small class="text-muted" id="navUserSub">Healthcare</small>
+            </div>
+          </div>
+          <button class="btn btn-outline-danger btn-sm ms-2" onclick="handleLogout()" title="Logout">
+            <i class="bi bi-box-arrow-right"></i> <span class="d-none d-md-inline">Logout</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Flash Toast / Alert Container -->
+  <div class="container mt-2" id="alertContainer"></div>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <!-- Footer with College Attribution -->
+  <footer class="footer-custom mt-auto">
+    <div class="container">
+      <div class="row align-items-center text-center text-md-start">
+        <div class="col-md-6 mb-2 mb-md-0">
+          <div class="fw-bold text-dark">MediCare Cloud &copy; 2026-2027</div>
+          <div class="small">Smart Healthcare Monitoring & Medication Reminder System Using Cloud Technology</div>
+          <div class="text-muted small">Dept. of Information Science and Engineering &bull; City Engineering College, Bengaluru</div>
+        </div>
+        <div class="col-md-6 text-md-end text-muted small">
+          <div><strong>Team:</strong> Akash N Sidnal &bull; Bhartesh P B &bull; Chethan V &bull; Likith I N</div>
+          <div><strong>Under Guidance of:</strong> Mrs. Hemalatha D, Associate Professor, Dept. of ISE</div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Local Bootstrap Bundle -->
+  <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Register PWA Service Worker for Mobile Installation
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration:', err));
+    }
+
+    const token = localStorage.getItem("token");
+    const currentPath = window.location.pathname;
+
+    if (!token && currentPath !== "/login" && currentPath !== "/register") {
+      window.location.href = "/login";
+    }
+
+    // Role-Based Navigation Setup
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const u = JSON.parse(storedUser);
+        const role = u.role || "patient";
+        const roleBadge = document.getElementById("navRoleBadge");
+        if (roleBadge) roleBadge.textContent = role.toUpperCase();
+
+        const name = u.profile?.full_name || u.email;
+        const sub = role === "consultant" ? (u.profile?.specialization || "Physician") : (u.profile?.disease_condition || "Patient");
+        const initials = name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
+
+        document.getElementById("navUserName").textContent = name;
+        document.getElementById("navUserSub").textContent = sub;
+        document.getElementById("navAvatar").textContent = initials;
+
+        const brandLink = document.getElementById("brandLink");
+        brandLink.href = role === "consultant" ? "/consultant/dashboard" : "/patient/dashboard";
+
+        const navList = document.getElementById("navLinksContainer");
+        if (role === "consultant") {
+          navList.innerHTML = `
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('dashboard') ? 'active' : ''}" href="/consultant/dashboard"><i class="bi bi-grid-fill me-1"></i> Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('patients') ? 'active' : ''}" href="/consultant/patients"><i class="bi bi-people-fill me-1"></i> Patients</a></li>
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('reports') ? 'active' : ''}" href="/consultant/reports"><i class="bi bi-file-earmark-bar-graph-fill me-1"></i> Reports</a></li>
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('feedback') ? 'active' : ''}" href="/consultant/feedback"><i class="bi bi-chat-heart-fill me-1"></i> Guidance</a></li>
+          `;
+        } else {
+          navList.innerHTML = `
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('dashboard') ? 'active' : ''}" href="/patient/dashboard"><i class="bi bi-alarm-fill me-1"></i> My Reminders</a></li>
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('prescriptions') ? 'active' : ''}" href="/patient/prescriptions"><i class="bi bi-capsule me-1"></i> Prescriptions</a></li>
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('calendar') ? 'active' : ''}" href="/patient/calendar"><i class="bi bi-calendar3 me-1"></i> Calendar History</a></li>
+            <li class="nav-item"><a class="nav-link ${currentPath.includes('history') ? 'active' : ''}" href="/patient/history"><i class="bi bi-clock-history me-1"></i> Logs & Doctor Notes</a></li>
+          `;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      const userSec = document.getElementById("navUserSection");
+      if (userSec && (currentPath === "/login" || currentPath === "/register")) {
+        userSec.style.display = "none";
+      }
+    }
+
+    function handleLogout() {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    }
+
+    function showAlert(message, type="info") {
+      const container = document.getElementById("alertContainer");
+      if (!container) return;
+      const alert = document.createElement("div");
+      alert.className = `alert alert-${type} alert-dismissible fade show shadow-sm`;
+      alert.innerHTML = `
+        <span>${message}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      container.appendChild(alert);
+      setTimeout(() => alert.remove(), 4000);
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

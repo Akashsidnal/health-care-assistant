@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Register - MediCare Cloud{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+  <div class="col-md-8 col-lg-6">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+      <div class="card-header bg-primary text-white text-center py-3">
+        <h4 class="fw-bold mb-0">Create MediCare Account</h4>
+        <small class="text-white-50">Register as a Patient or Medical Consultant</small>
+      </div>
+      <div class="card-body p-4 p-md-4">
+        <form id="registerForm" onsubmit="handleRegisterSubmit(event)">
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">I am registering as:</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="role" id="rolePatient" value="patient" checked onchange="toggleRoleFields()">
+                <label class="form-check-label fw-semibold" for="rolePatient">Patient</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="role" id="roleDoctor" value="consultant" onchange="toggleRoleFields()">
+                <label class="form-check-label fw-semibold" for="roleDoctor">Doctor / Consultant</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-12">
+              <label class="form-label fw-semibold">Full Name</label>
+              <input type="text" id="reg_name" class="form-control" placeholder="e.g. Johnathan Smith" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Email Address</label>
+              <input type="email" id="reg_email" class="form-control" placeholder="user@gmail.com" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Phone Number</label>
+              <input type="tel" id="reg_phone" class="form-control" placeholder="+91 98765 43210" required>
+            </div>
+
+            <!-- Patient Specific Fields -->
+            <div class="col-md-6 patient-field">
+              <label class="form-label fw-semibold">Age</label>
+              <input type="number" id="reg_age" class="form-control" placeholder="65">
+            </div>
+            <div class="col-md-6 patient-field">
+              <label class="form-label fw-semibold">Gender</label>
+              <select id="reg_gender" class="form-select">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="col-md-12 patient-field">
+              <label class="form-label fw-semibold">Health Condition</label>
+              <input type="text" id="reg_condition" class="form-control" placeholder="e.g. Type 2 Diabetes, Hypertension">
+            </div>
+            <div class="col-md-12 patient-field">
+              <label class="form-label fw-semibold">Emergency Contact (Name & Phone)</label>
+              <input type="text" id="reg_emergency" class="form-control" placeholder="e.g. Rahul (Son) - +91 98765 43211">
+            </div>
+
+            <!-- Consultant Specific Fields -->
+            <div class="col-md-6 doctor-field d-none">
+              <label class="form-label fw-semibold">Designation</label>
+              <input type="text" id="reg_designation" class="form-control" placeholder="Chief Physician">
+            </div>
+            <div class="col-md-6 doctor-field d-none">
+              <label class="form-label fw-semibold">Specialization</label>
+              <input type="text" id="reg_specialization" class="form-control" placeholder="Cardiology">
+            </div>
+            <div class="col-md-12 doctor-field d-none">
+              <label class="form-label fw-semibold">Hospital / Clinic</label>
+              <input type="text" id="reg_organization" class="form-control" placeholder="City General Hospital">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Password</label>
+              <input type="password" id="reg_password" class="form-control" placeholder="••••••••" required minlength="6">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Confirm Password</label>
+              <input type="password" id="reg_confirm" class="form-control" placeholder="••••••••" required minlength="6">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary-custom w-100 py-2 rounded-3 shadow-sm mt-4 mb-3">
+            <i class="bi bi-person-plus-fill me-1"></i> Register Account
+          </button>
+
+          <div class="text-center text-muted small">
+            Already have an account? <a href="/login" class="fw-bold text-primary text-decoration-none">Sign In</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleRoleFields() {
+    const isPatient = document.getElementById("rolePatient").checked;
+    document.querySelectorAll(".patient-field").forEach(el => el.classList.toggle("d-none", !isPatient));
+    document.querySelectorAll(".doctor-field").forEach(el => el.classList.toggle("d-none", isPatient));
+  }
+
+  async function handleRegisterSubmit(e) {
+    e.preventDefault();
+    const role = document.querySelector('input[name="role"]:checked').value;
+    const full_name = document.getElementById("reg_name").value.trim();
+    const email = document.getElementById("reg_email").value.trim();
+    const phone_number = document.getElementById("reg_phone").value.trim();
+    const password = document.getElementById("reg_password").value;
+    const confirm_password = document.getElementById("reg_confirm").value;
+
+    if (password !== confirm_password) {
+      showAlert("Passwords do not match!", "danger");
+      return;
+    }
+
+    const payload = {
+      role, full_name, email, phone_number, password, confirm_password
+    };
+
+    if (role === "patient") {
+      payload.age = parseInt(document.getElementById("reg_age").value) || null;
+      payload.gender = document.getElementById("reg_gender").value;
+      payload.disease_condition = document.getElementById("reg_condition").value.trim();
+      payload.emergency_contact = document.getElementById("reg_emergency").value.trim();
+    } else {
+      payload.designation = document.getElementById("reg_designation").value.trim();
+      payload.specialization = document.getElementById("reg_specialization").value.trim();
+      payload.organization = document.getElementById("reg_organization").value.trim();
+    }
+
+    try {
+      const resp = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) throw new Error(data.error || "Registration failed");
+
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      showAlert("Account created! Redirecting...", "success");
+
+      setTimeout(() => {
+        window.location.href = role === "consultant" ? "/consultant/dashboard" : "/patient/dashboard";
+      }, 600);
+    } catch (err) {
+      showAlert(err.message, "danger");
+    }
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}My Prescriptions - MediCare Cloud{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+  <div>
+    <h3 class="fw-bold mb-1">Prescription Regimen</h3>
+    <p class="text-muted mb-0">Manage medications, schedule dosing intervals, and store prescription records.</p>
+  </div>
+  <div>
+    <button class="btn btn-primary-custom" onclick="openAddPrescriptionModal()">
+      <i class="bi bi-plus-circle-fill me-1"></i> Add Medication / Upload Rx
+    </button>
+  </div>
+</div>
+
+<!-- Active Prescriptions Grid -->
+<div class="row g-4" id="prescriptionsContainer">
+  <div class="col-12 text-center py-5 text-muted">
+    <div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading your prescriptions...
+  </div>
+</div>
+
+<!-- Modal: Add Medication & Upload Prescription -->
+<div class="modal fade" id="addPrescriptionModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title fw-bold"><i class="bi bi-prescription2 text-primary me-2"></i> Add Prescription</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form id="rxUploadForm" onsubmit="handlePrescriptionSubmit(event)">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Medicine Name</label>
+            <input type="text" id="rx_name" class="form-control" placeholder="e.g. Metformin, Amlodipine" required>
+          </div>
+          
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Dosage</label>
+              <input type="text" id="rx_dosage" class="form-control" placeholder="500 mg (1 tablet)" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Pills / Inventory</label>
+              <input type="number" id="rx_count" class="form-control" value="30" required>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Scheduled Dosing Times (24h, comma-separated)</label>
+            <input type="text" id="rx_times" class="form-control" placeholder="08:00, 20:00" value="08:00" required>
+            <small class="text-muted">Example: <code>08:00</code> or <code>08:00, 14:00, 20:00</code></small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Frequency</label>
+            <input type="text" id="rx_frequency" class="form-control" value="Once daily" placeholder="Twice daily / Every 8 hours" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Instructions for Taking</label>
+            <textarea id="rx_instructions" class="form-control" rows="2" placeholder="Take with food and water"></textarea>
+          </div>
+
+          <!-- Prescription Slip Document / Photo Upload -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Attach Prescription Document / Photo</label>
+            <input type="file" id="rx_doc_file" class="form-control" accept="image/*,application/pdf">
+            <small class="text-muted">Upload prescription slip (PNG, JPG, or PDF)</small>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" id="saveRxBtn" class="btn btn-primary-custom">
+              <i class="bi bi-cloud-arrow-up-fill me-1"></i> Save to Cloud
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let addModal;
+  document.addEventListener("DOMContentLoaded", () => {
+    addModal = new bootstrap.Modal(document.getElementById("addPrescriptionModal"));
+    loadPrescriptions();
+  });
+
+  function openAddPrescriptionModal() {
+    addModal.show();
+  }
+
+  async function loadPrescriptions() {
+    try {
+      const resp = await fetch("/api/medicines", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const meds = await resp.json();
+      const container = document.getElementById("prescriptionsContainer");
+
+      if (!meds || meds.length === 0) {
+        container.innerHTML = `
+          <div class="col-12 text-center py-5 text-muted">
+            <i class="bi bi-capsule fs-1 text-primary d-block mb-2"></i>
+            <h5>No prescriptions added yet</h5>
+            <p class="small">Tap the button above to add your medications and upload prescription slips.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = meds.map(m => {
+        const times = m.schedules && m.schedules.length ? m.schedules.map(s => s.scheduled_time).join(", ") : "08:00";
+        return `
+          <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden">
+              <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                  <div class="avatar-circle fs-4" style="background:#e0f2fe; color:#0284c7;">
+                    <i class="bi bi-capsule"></i>
+                  </div>
+                  <span class="badge ${m.is_active ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'} border">
+                    ${m.is_active ? 'Active Regimen' : 'Paused'}
+                  </span>
+                </div>
+
+                <h5 class="fw-bold text-dark mb-1">${m.name}</h5>
+                <div class="text-primary fw-semibold mb-2">${m.dosage}</div>
+                
+                <div class="p-2 bg-light rounded-3 small mb-3">
+                  <div class="d-flex justify-content-between text-muted mb-1">
+                    <span>Frequency:</span> <strong class="text-dark">${m.frequency}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between text-muted mb-1">
+                    <span>Daily Times:</span> <strong class="text-primary"><i class="bi bi-clock me-1"></i>${times}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between text-muted">
+                    <span>Supply Inventory:</span> <strong class="text-dark">${m.tablet_count} pills</strong>
+                  </div>
+                </div>
+
+                ${m.instructions ? `<div class="small text-secondary mb-3"><i class="bi bi-info-circle me-1"></i>${m.instructions}</div>` : ''}
+
+                ${m.prescription_url ? `
+                  <div class="mb-3">
+                    <a href="${m.prescription_url}" target="_blank" class="btn btn-sm btn-outline-info w-100">
+                      <i class="bi bi-paperclip me-1"></i> View Attached Prescription Slip
+                    </a>
+                  </div>
+                ` : ''}
+
+                <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+                  <button class="btn btn-sm ${m.is_active ? 'btn-outline-warning' : 'btn-outline-success'}" onclick="toggleMedActive(${m.id}, ${m.is_active})">
+                    ${m.is_active ? 'Pause' : 'Resume'}
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" onclick="deleteMed(${m.id})">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (e) {
+      console.error(e);
+      showAlert("Error loading prescriptions", "danger");
+    }
+  }
+
+  async function handlePrescriptionSubmit(e) {
+    e.preventDefault();
+    const saveBtn = document.getElementById("saveRxBtn");
+    saveBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append("name", document.getElementById("rx_name").value.trim());
+    formData.append("dosage", document.getElementById("rx_dosage").value.trim());
+    formData.append("tablet_count", document.getElementById("rx_count").value);
+    formData.append("times", document.getElementById("rx_times").value.trim());
+    formData.append("frequency", document.getElementById("rx_frequency").value.trim());
+    formData.append("instructions", document.getElementById("rx_instructions").value.trim());
+
+    const fileInput = document.getElementById("rx_doc_file");
+    if (fileInput.files.length > 0) {
+      formData.append("prescription", fileInput.files[0]);
+    }
+
+    try {
+      const resp = await fetch("/api/medicines", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) throw new Error(data.error || "Failed to save prescription");
+
+      showAlert("Prescription saved and scheduled!", "success");
+      addModal.hide();
+      document.getElementById("rxUploadForm").reset();
+      loadPrescriptions();
+    } catch (err) {
+      showAlert(err.message, "danger");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  async function toggleMedActive(medId, currentActive) {
+    const action = currentActive ? "pause" : "resume";
+    try {
+      const resp = await fetch(`/api/medicines/${medId}/${action}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error("Failed to change status");
+      showAlert(`Medication ${action}d successfully`, "info");
+      loadPrescriptions();
+    } catch (e) {
+      showAlert(e.message, "danger");
+    }
+  }
+
+  async function deleteMed(medId) {
+    if (!confirm("Are you sure you want to remove this medication regimen?")) return;
+    try {
+      const resp = await fetch(`/api/medicines/${medId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      showAlert("Medication removed", "info");
+      loadPrescriptions();
+    } catch (e) {
+      showAlert("Error deleting medicine", "danger");
+    }
+  }
+</script>
+{% endblock %}

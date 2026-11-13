@@ -1,0 +1,21 @@
+{
+  "short_name": "MediCare",
+  "name": "MediCare Cloud - Smart Healthcare Monitoring",
+  "icons": [
+    {
+      "src": "/static/uploads/default_pill.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/uploads/default_pill.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/login",
+  "background_color": "#0284c7",
+  "theme_color": "#0284c7",
+  "display": "standalone",
+  "orientation": "portrait"
+}

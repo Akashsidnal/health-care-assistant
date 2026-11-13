@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar History - MediCare Cloud{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+  <div>
+    <h3 class="fw-bold mb-1">Adherence Calendar History</h3>
+    <p class="text-muted mb-0">Visual day-by-day record of taken, skipped, and missed medications.</p>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="changeMonth(-1)">
+      <i class="bi bi-chevron-left"></i> Previous
+    </button>
+    <span class="fw-bold fs-6 px-2" id="currentMonthYearLabel">October 2026</span>
+    <button class="btn btn-outline-secondary btn-sm" onclick="changeMonth(1)">
+      Next <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+</div>
+
+<!-- Calendar Legend -->
+<div class="card border-0 shadow-sm rounded-4 mb-3">
+  <div class="card-body p-3 d-flex flex-wrap align-items-center justify-content-between gap-3 small">
+    <div class="d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center gap-1">
+        <span class="status-dot taken"></span> <span class="fw-semibold">Taken Dose</span>
+      </div>
+      <div class="d-flex align-items-center gap-1">
+        <span class="status-dot skipped"></span> <span class="fw-semibold">Skipped Dose</span>
+      </div>
+      <div class="d-flex align-items-center gap-1">
+        <span class="status-dot missed"></span> <span class="fw-semibold">Missed Dose</span>
+      </div>
+    </div>
+    <div class="text-muted">Click any date to inspect individual doses</div>
+  </div>
+</div>
+
+<!-- Main Calendar Card -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card-body p-3 p-md-4">
+    <!-- Day Header -->
+    <div class="calendar-grid mb-2">
+      <div class="calendar-day-header text-danger">Sun</div>
+      <div class="calendar-day-header">Mon</div>
+      <div class="calendar-day-header">Tue</div>
+      <div class="calendar-day-header">Wed</div>
+      <div class="calendar-day-header">Thu</div>
+      <div class="calendar-day-header">Fri</div>
+      <div class="calendar-day-header">Sat</div>
+    </div>
+
+    <!-- Day Cells Container -->
+    <div class="calendar-grid" id="calendarDaysGrid">
+      <div class="text-center py-5 w-100">Loading calendar matrix...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Day Detail Panel (when a cell is clicked) -->
+<div class="card border-0 shadow-sm rounded-4 d-none" id="dayDetailCard">
+  <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+    <h6 class="fw-bold mb-0 text-primary" id="selectedDateTitle">Dose Details for Date</h6>
+    <button class="btn btn-sm btn-close" onclick="closeDayDetail()"></button>
+  </div>
+  <div class="card-body p-3">
+    <div id="dayDetailDosesList" class="d-flex flex-column gap-2"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentYear = new Date().getFullYear();
+  let currentMonth = new Date().getMonth() + 1; // 1-indexed
+
+  document.addEventListener("DOMContentLoaded", () => {
+    loadCalendarData(currentYear, currentMonth);
+  });
+
+  function changeMonth(offset) {
+    currentMonth += offset;
+    if (currentMonth > 12) { currentMonth = 1; currentYear += 1; }
+    else if (currentMonth < 1) { currentMonth = 12; currentYear -= 1; }
+    loadCalendarData(currentYear, currentMonth);
+  }
+
+  async function loadCalendarData(year, month) {
+    try {
+      const resp = await fetch(`/api/patient/calendar?year=${year}&month=${month}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await resp.json();
+
+      document.getElementById("currentMonthYearLabel").textContent = `${data.month_name} ${data.year}`;
+
+      renderCalendarGrid(data);
+    } catch (e) {
+      console.error(e);
+      showAlert("Error loading calendar data", "danger");
+    }
+  }
+
+  function renderCalendarGrid(data) {
+    const grid = document.getElementById("calendarDaysGrid");
+    grid.innerHTML = "";
+
+    // Find day of week for 1st day of month (0 = Sun, 6 = Sat)
+    const firstDayOfWeek = new Date(data.year, data.month - 1, 1).getDay();
+
+    // Blank filler cells before the 1st
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      const blank = document.createElement("div");
+      blank.className = "calendar-day-cell other-month";
+      grid.appendChild(blank);
+    }
+
+    const todayDateStr = new Date().toISOString().substring(0, 10);
+
+    data.days.forEach(day => {
+      const cell = document.createElement("div");
+      const isToday = day.date === todayDateStr;
+      cell.className = `calendar-day-cell ${isToday ? 'today' : ''}`;
+      cell.onclick = () => showDayDetail(day);
+
+      // Render dots
+      let dotsHtml = '';
+      if (day.doses && day.doses.length > 0) {
+        dotsHtml = '<div class="status-dot-group">' + day.doses.map(d => {
+          let dotCls = 'pending';
+          if (d.status === 'TAKEN') dotCls = 'taken';
+          else if (d.status === 'SKIPPED') dotCls = 'skipped';
+          else if (d.status === 'MISSED') dotCls = 'missed';
+          return `<span class="status-dot ${dotCls}" title="${d.medicine_name}: ${d.status}"></span>`;
+        }).join("") + '</div>';
+      }
+
+      cell.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="calendar-date-num ${isToday ? 'text-primary' : 'text-dark'}">${day.day}</span>
+          ${day.total_doses > 0 ? `<small class="text-muted" style="font-size:0.65rem;">${day.taken}/${day.total_doses}</small>` : ''}
+        </div>
+        ${dotsHtml}
+      `;
+      grid.appendChild(cell);
+    });
+  }
+
+  function showDayDetail(day) {
+    const card = document.getElementById("dayDetailCard");
+    const title = document.getElementById("selectedDateTitle");
+    const list = document.getElementById("dayDetailDosesList");
+
+    title.textContent = `Doses for ${day.date} (${day.total_doses} scheduled)`;
+
+    if (!day.doses || day.doses.length === 0) {
+      list.innerHTML = `<div class="text-muted small py-2">No doses were scheduled on this date.</div>`;
+    } else {
+      list.innerHTML = day.doses.map(d => `
+        <div class="p-2 border rounded-2 d-flex justify-content-between align-items-center bg-light">
+          <div>
+            <strong>${d.medicine_name}</strong> - <span class="text-muted small">${d.dosage || '1 dose'}</span>
+            <div class="small text-secondary">Scheduled: ${d.scheduled_time.split(" ")[1] || d.scheduled_time} ${d.actual_time ? `&bull; Logged: ${d.actual_time.split(" ")[1]}` : ''}</div>
+            ${d.notes ? `<div class="small text-info">${d.notes}</div>` : ''}
+          </div>
+          <div>
+            <span class="badge ${d.status === 'TAKEN' ? 'bg-success' : (d.status === 'SKIPPED' ? 'bg-warning text-dark' : 'bg-danger')}">
+              ${d.status}
+            </span>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    card.classList.remove("d-none");
+    card.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function closeDayDetail() {
+    document.getElementById("dayDetailCard").classList.add("d-none");
+  }
+</script>
+{% endblock %}

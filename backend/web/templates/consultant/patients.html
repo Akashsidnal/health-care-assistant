@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Directory - MediCare Cloud{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-people-fill text-primary me-2"></i>Patient Roster &amp; Cohort</h2>
+        <p class="text-muted mb-0">Search, monitor, and manage clinical care plans for your enrolled patient cohort.</p>
+      </div>
+      <div>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#assignPatientModal">
+          <i class="bi bi-person-plus-fill me-1"></i> Enroll Patient
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters & Search Toolbar -->
+<div class="card card-custom mb-4">
+  <div class="card-body p-3">
+    <div class="row g-3 align-items-center">
+      <div class="col-md-5">
+        <div class="input-group">
+          <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="Search by patient name or phone number..." oninput="debounceSearch()">
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="btn-group w-100" role="group">
+          <input type="radio" class="btn-check" name="cohortFilter" id="filterAll" value="all" checked onchange="loadPatients()">
+          <label class="btn btn-outline-secondary btn-sm" for="filterAll">All</label>
+
+          <input type="radio" class="btn-check" name="cohortFilter" id="filterHigh" value="high" onchange="loadPatients()">
+          <label class="btn btn-outline-success btn-sm" for="filterHigh">High Adherence (&ge;80%)</label>
+
+          <input type="radio" class="btn-check" name="cohortFilter" id="filterLow" value="low" onchange="loadPatients()">
+          <label class="btn btn-outline-danger btn-sm" for="filterLow">At-Risk (&lt;70%)</label>
+
+          <input type="radio" class="btn-check" name="cohortFilter" id="filterMissed" value="missed" onchange="loadPatients()">
+          <label class="btn btn-outline-warning btn-sm" for="filterMissed">Missed Today</label>
+        </div>
+      </div>
+      <div class="col-md-2 text-md-end">
+        <span class="badge bg-light text-dark border p-2" id="patientCountBadge">0 Patients</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Patient Directory Table -->
+<div class="card card-custom">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Patient Details</th>
+            <th>Primary Condition</th>
+            <th>Active Medicines</th>
+            <th>Overall Adherence</th>
+            <th>Today's Doses</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="patientsTableBody">
+          <tr><td colspan="6" class="text-center py-5 text-muted">Loading patient directory...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Enroll Patient -->
+<div class="modal fade" id="assignPatientModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content card-custom">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="bi bi-person-plus text-primary me-2"></i>Enroll Patient to Roster</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Enter the registered email address of the patient. The patient will immediately show up in your care list.</p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Patient Email</label>
+          <input type="email" id="assignEmailInput" class="form-control" placeholder="patient@smarthealth.demo" required>
+        </div>
+        <div id="assignAlert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="assignPatientSubmit()">Enroll Patient</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let debounceTimer = null;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    loadPatients();
+  });
+
+  function debounceSearch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      loadPatients();
+    }, 300);
+  }
+
+  function getSelectedFilter() {
+    const radios = document.getElementsByName("cohortFilter");
+    for (const r of radios) {
+      if (r.checked) return r.value;
+    }
+    return "all";
+  }
+
+  async function loadPatients() {
+    const search = document.getElementById("searchInput").value.trim();
+    const filter = getSelectedFilter();
+    const tbody = document.getElementById("patientsTableBody");
+
+    const url = `/api/consultant/patients?search=${encodeURIComponent(search)}&filter=${encodeURIComponent(filter)}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 403) window.location.href = "/patient/dashboard";
+        return;
+      }
+      const patients = await res.json();
+      document.getElementById("patientCountBadge").textContent = `${patients.length} Patient${patients.length === 1 ? '' : 's'}`;
+
+      if (patients.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <i class="bi bi-person-x fs-2 d-block mb-2"></i>
+              No matching patients found.
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = patients.map(p => {
+        let badgeColor = "bg-success";
+        if (p.adherence_percentage < 70) badgeColor = "bg-danger";
+        else if (p.adherence_percentage < 85) badgeColor = "bg-warning text-dark";
+
+        return `
+          <tr>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div class="avatar-circle fs-8">${p.full_name.split(" ").map(n=>n[0]).join("").substring(0,2)}</div>
+                <div>
+                  <a href="/consultant/patients/${p.id}" class="fw-bold text-dark text-decoration-none">
+                    ${p.full_name}
+                  </a>
+                  <div class="small text-muted">
+                    ${p.age} yrs &bull; ${p.gender || "N/A"} &bull; 
+                    <a href="tel:${p.phone_number}" class="text-decoration-none text-muted">
+                      <i class="bi bi-telephone-fill text-primary"></i> ${p.phone_number}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">${p.disease_condition || "General Care"}</span>
+            </td>
+            <td>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                <i class="bi bi-capsule me-1"></i> ${p.active_medicines_count} Prescriptions
+              </span>
+            </td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge ${badgeColor}">${p.adherence_percentage}%</span>
+                <div class="progress flex-grow-1" style="height: 6px; width: 70px;">
+                  <div class="progress-bar ${p.adherence_percentage < 70 ? 'bg-danger' : (p.adherence_percentage < 85 ? 'bg-warning' : 'bg-success')}" style="width: ${p.adherence_percentage}%"></div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="small">
+                <span class="text-success fw-bold">${p.today_status.taken} Taken</span> / 
+                <span class="text-warning fw-bold">${p.today_status.skipped} Skip</span> / 
+                <span class="text-danger fw-bold">${p.today_status.missed} Missed</span>
+              </div>
+            </td>
+            <td class="text-end">
+              <a href="/consultant/patients/${p.id}" class="btn btn-sm btn-primary">
+                <i class="bi bi-file-earmark-medical me-1"></i> Manage
+              </a>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    } catch (e) {
+      console.error(e);
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Error loading patients.</td></tr>`;
+    }
+  }
+
+  async function assignPatientSubmit() {
+    const email = document.getElementById("assignEmailInput").value.trim();
+    const alertDiv = document.getElementById("assignAlert");
+    if (!email) {
+      alertDiv.innerHTML = `<div class="alert alert-danger py-2 small mt-2">Please enter patient email.</div>`;
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/consultant/patients/assign", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ email: email })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alertDiv.innerHTML = `<div class="alert alert-success py-2 small mt-2">${data.message}</div>`;
+        setTimeout(() => {
+          const modal = bootstrap.Modal.getInstance(document.getElementById("assignPatientModal"));
+          if (modal) modal.hide();
+          loadPatients();
+        }, 1200);
+      } else {
+        alertDiv.innerHTML = `<div class="alert alert-danger py-2 small mt-2">${data.error || "Failed to link patient"}</div>`;
+      }
+    } catch (e) {
+      console.error(e);
+      alertDiv.innerHTML = `<div class="alert alert-danger py-2 small mt-2">Network error.</div>`;
+    }
+  }
+</script>
+{% endblock %}

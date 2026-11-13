@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">MediCare Cloud</string>
+    <string name="default_server_url">http://10.177.166.250:5000</string>
+    <string name="emulator_server_url">http://10.0.2.2:5000</string>
+</resources>

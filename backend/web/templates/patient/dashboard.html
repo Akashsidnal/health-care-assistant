@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Companion Dashboard - MediCare Cloud{% endblock %}
+
+{% block content %}
+<!-- Audio Element for Real-Time Reminder Alarm -->
+<audio id="alarmAudio" loop preload="auto">
+  <source src="/static/sounds/alarm_chime.wav" type="audio/wav">
+</audio>
+
+<!-- Top Header with Real-Time Digital Clock -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+  <div>
+    <h3 class="fw-bold mb-1" id="patientGreeting">Good Day, Patient</h3>
+    <div class="text-muted d-flex align-items-center gap-2">
+      <i class="bi bi-clock-fill text-primary"></i>
+      <span class="fw-bold text-dark fs-6" id="liveDigitalClock">00:00:00 AM</span>
+      <span>&bull;</span>
+      <span id="liveDateStr">Loading date...</span>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <!-- 1-Click Instant Alarm Demonstration Button for Evaluators -->
+    <button class="btn btn-warning fw-bold text-dark shadow-sm" onclick="triggerTestAlarmDemo()">
+      <i class="bi bi-bell-fill me-1"></i> Test Live Alarm Now
+    </button>
+    <a href="/patient/calendar" class="btn btn-outline-primary">
+      <i class="bi bi-calendar3 me-1"></i> Calendar History
+    </a>
+  </div>
+</div>
+
+<!-- Adherence Scorecard Row -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card-stat d-flex align-items-center gap-3">
+      <div class="stat-icon primary"><i class="bi bi-check2-circle"></i></div>
+      <div>
+        <div class="stat-value" id="statAdherencePct">--%</div>
+        <div class="stat-label">Overall Adherence</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card-stat d-flex align-items-center gap-3">
+      <div class="stat-icon success"><i class="bi bi-capsule"></i></div>
+      <div>
+        <div class="stat-value" id="statTakenCount">--</div>
+        <div class="stat-label">Doses Taken</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card-stat d-flex align-items-center gap-3">
+      <div class="stat-icon warning"><i class="bi bi-slash-circle"></i></div>
+      <div>
+        <div class="stat-value" id="statSkippedCount">--</div>
+        <div class="stat-label">Doses Skipped</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card-stat d-flex align-items-center gap-3">
+      <div class="stat-icon danger"><i class="bi bi-x-circle"></i></div>
+      <div>
+        <div class="stat-value" id="statMissedCount">--</div>
+        <div class="stat-label">Missed Doses</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Row: Today's Schedule & Caregiver/Emergency Info -->
+<div class="row g-4 mb-4">
+  <!-- Today's Schedule Column -->
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-calendar2-check-fill text-primary"></i> Today's Medication Schedule
+        </h5>
+        <span class="badge bg-primary-subtle text-primary border" id="todayDosesBadge">Loading...</span>
+      </div>
+      <div class="card-body p-3">
+        <div id="todayScheduleList" class="d-flex flex-column gap-3">
+          <div class="text-center py-5 text-muted">Fetching your schedule...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Side Column: Attending Doctor & Emergency Contact -->
+  <div class="col-lg-4">
+    <div class="d-flex flex-column gap-3">
+      <!-- Assigned Consultant Card -->
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-person-badge-fill me-1"></i> Attending Consultant</h6>
+        </div>
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center gap-3 mb-2">
+            <div class="avatar-circle fs-5" id="docAvatar">DR</div>
+            <div>
+              <div class="fw-bold text-dark" id="docName">Dr. Sarah Jenkins, MD</div>
+              <small class="text-muted" id="docOrg">City Memorial Healthcare</small>
+            </div>
+          </div>
+          <div class="mt-3 p-2 bg-light rounded-3 small text-secondary" id="docLatestFeedback">
+            <i class="bi bi-chat-quote-fill me-1 text-primary"></i>
+            <span id="feedbackText">"Keep following your prescribed schedule carefully."</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emergency Contact Escalation Card -->
+      <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-danger">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-danger fw-bold small text-uppercase"><i class="bi bi-shield-exclamation me-1"></i> Emergency Contact</span>
+            <span class="badge bg-danger-subtle text-danger">Safety Alert</span>
+          </div>
+          <div class="fw-bold fs-6 text-dark" id="emergencyName">Designated Family Member</div>
+          <div class="text-muted small mb-2" id="emergencyDetail">Available for urgent escalation</div>
+          <a href="#" id="emergencyCallBtn" class="btn btn-danger btn-sm w-100 fw-bold">
+            <i class="bi bi-telephone-outbound-fill me-1"></i> Call Emergency Contact
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- REAL-TIME FULL-SCREEN ALARM MODAL                         -->
+<!-- ========================================================= -->
+<div class="modal fade" id="alarmTriggerModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+      <!-- Pulsing Alert Header -->
+      <div class="alarm-overlay-header text-center py-4 bg-warning text-dark">
+        <div class="fs-1 mb-1 alarm-pulse"><i class="bi bi-bell-fill text-danger"></i></div>
+        <h4 class="fw-bold mb-0">⚠️ MEDICINE TIME ALERT</h4>
+        <small class="fw-semibold">Please take your prescribed medication now</small>
+      </div>
+
+      <div class="modal-body p-4 text-center">
+        <!-- Pill Image / Icon -->
+        <div class="mb-3">
+          <div class="avatar-circle mx-auto" style="width: 72px; height: 72px; font-size: 2rem; background: #e0f2fe; color: #0284c7;">
+            <i class="bi bi-capsule"></i>
+          </div>
+        </div>
+
+        <h4 class="fw-bold text-dark mb-1" id="alarmMedName">Medicine Name</h4>
+        <div class="fs-5 text-primary fw-semibold mb-2" id="alarmMedDosage">1 Tablet (500mg)</div>
+        <div class="badge bg-light text-dark border mb-3 fs-6" id="alarmMedTime">Scheduled: 08:00 AM</div>
+        <p class="text-muted small" id="alarmMedInstructions">Take with a full glass of water after meals.</p>
+
+        <!-- Big Touch Friendly Action Buttons -->
+        <div class="row g-2 mt-3">
+          <div class="col-6">
+            <button type="button" class="btn btn-success btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" onclick="handleAlarmDoseAction('TAKEN')">
+              <i class="bi bi-check-lg fs-4 d-block"></i> TAKEN
+            </button>
+          </div>
+          <div class="col-6">
+            <button type="button" class="btn btn-warning btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm text-dark" onclick="handleAlarmDoseAction('SKIPPED')">
+              <i class="bi bi-slash-circle fs-4 d-block"></i> SKIP
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <button type="button" class="btn btn-link btn-sm text-muted text-decoration-none" onclick="snoozeAlarm()">
+            <i class="bi bi-alarm"></i> Remind me in 5 minutes (Snooze)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Embedded Audio Element for Local Alarm Chime -->
+<audio id="alarmAudio" src="/static/sounds/alarm_chime.wav" preload="auto" loop></audio>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let todayDosesList = [];
+  let alarmModal;
+  let currentActiveDose = null;
+  let audioCtx = null;
+  let chimeInterval = null;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    alarmModal = new bootstrap.Modal(document.getElementById("alarmTriggerModal"));
+    
+    // Start Live Clock
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // Initial Dashboard Data Fetch
+    loadPatientDashboard();
+
+    // Live Interval checking for alarm trigger every 5 seconds
+    setInterval(checkLiveScheduledAlarms, 5000);
+  });
+
+  function updateClock() {
+    const now = new Date();
+    document.getElementById("liveDigitalClock").textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById("liveDateStr").textContent = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  async function loadPatientDashboard() {
+    try {
+      const resp = await fetch("/api/patient/dashboard", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (resp.status === 401) { handleLogout(); return; }
+      const data = await resp.json();
+
+      document.getElementById("patientGreeting").textContent = data.welcome_message;
+      
+      // Adherence stats
+      const adh = data.adherence.overall;
+      document.getElementById("statAdherencePct").textContent = `${adh.percentage}%`;
+      document.getElementById("statTakenCount").textContent = adh.taken;
+      document.getElementById("statSkippedCount").textContent = adh.skipped;
+      document.getElementById("statMissedCount").textContent = adh.missed;
+
+      // Doctor Card
+      if (data.consultant) {
+        document.getElementById("docName").textContent = data.consultant.full_name;
+        document.getElementById("docOrg").textContent = data.consultant.organization || "Clinical Center";
+        document.getElementById("docAvatar").textContent = data.consultant.full_name.substring(0, 2).toUpperCase();
+      }
+
+      // Latest Doctor Guidance
+      if (data.feedbacks && data.feedbacks.length > 0) {
+        document.getElementById("feedbackText").textContent = `"${data.feedbacks[0].message}"`;
+      }
+
+      // Emergency Contact
+      if (data.emergency_contact) {
+        document.getElementById("emergencyName").textContent = data.emergency_contact;
+        const phoneMatch = data.emergency_contact.match(/[\d\+\-\s]{8,}/);
+        if (phoneMatch) {
+          document.getElementById("emergencyCallBtn").href = `tel:${phoneMatch[0].trim()}`;
+        }
+      }
+
+      // Render today's schedule
+      todayDosesList = data.today_doses || [];
+      renderTodaySchedule(todayDosesList);
+
+    } catch (e) {
+      console.error(e);
+      showAlert("Error loading patient dashboard", "danger");
+    }
+  }
+
+  function renderTodaySchedule(doses) {
+    const listEl = document.getElementById("todayScheduleList");
+    document.getElementById("todayDosesBadge").textContent = `${doses.length} Doses Today`;
+
+    if (doses.length === 0) {
+      listEl.innerHTML = `
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-calendar-check fs-1 text-primary d-block mb-2"></i>
+          <div>No medicine doses scheduled for today.</div>
+          <a href="/patient/prescriptions" class="btn btn-sm btn-outline-primary mt-2">View Prescriptions</a>
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = doses.map(d => {
+      const timeStr = d.scheduled_time.split(" ")[1] || d.scheduled_time;
+      let badgeHtml = '';
+      if (d.status === 'TAKEN') badgeHtml = '<span class="badge bg-success-subtle text-success fs-7 border border-success-subtle"><i class="bi bi-check-circle me-1"></i>TAKEN</span>';
+      else if (d.status === 'SKIPPED') badgeHtml = '<span class="badge bg-warning-subtle text-warning-emphasis fs-7 border border-warning-subtle"><i class="bi bi-slash-circle me-1"></i>SKIPPED</span>';
+      else if (d.status === 'MISSED') badgeHtml = '<span class="badge bg-danger-subtle text-danger fs-7 border border-danger-subtle"><i class="bi bi-x-circle me-1"></i>MISSED</span>';
+      else badgeHtml = '<span class="badge bg-light text-primary border border-primary-subtle fs-7"><i class="bi bi-clock me-1"></i>PENDING</span>';
+
+      return `
+        <div class="p-3 border rounded-3 bg-white d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="avatar-circle" style="background:#f0f9ff; color:#0284c7;">
+              <i class="bi bi-capsule"></i>
+            </div>
+            <div>
+              <div class="fw-bold fs-6 text-dark">${d.medicine_name}</div>
+              <div class="small text-muted">${d.dosage || '1 dose'} &bull; Scheduled: <strong>${timeStr}</strong></div>
+              ${d.notes ? `<div class="small text-secondary mt-1"><em>Note: ${d.notes}</em></div>` : ''}
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            ${badgeHtml}
+            ${d.status === 'PENDING' ? `
+              <button class="btn btn-sm btn-outline-success" onclick="quickMarkDose(${d.id}, 'TAKEN')">Taken</button>
+              <button class="btn btn-sm btn-outline-warning text-dark" onclick="quickMarkDose(${d.id}, 'SKIPPED')">Skip</button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // Live Alarm Trigger Engine
+  function checkLiveScheduledAlarms() {
+    const now = new Date();
+    const currentHHMM = now.toTimeString().substring(0, 5); // "HH:MM"
+
+    for (const d of todayDosesList) {
+      if (d.status === "PENDING") {
+        const schedTime = d.scheduled_time.split(" ")[1];
+        if (schedTime === currentHHMM) {
+          triggerAlarmPopup(d);
+          break;
+        }
+      }
+    }
+  }
+
+  function triggerAlarmPopup(dose) {
+    currentActiveDose = dose;
+    document.getElementById("alarmMedName").textContent = dose.medicine_name;
+    document.getElementById("alarmMedDosage").textContent = dose.dosage || "1 Dose";
+    document.getElementById("alarmMedTime").textContent = `Scheduled: ${dose.scheduled_time.split(" ")[1]}`;
+    document.getElementById("alarmMedInstructions").textContent = dose.instructions || "Please take as prescribed with water.";
+
+    // Start Dual-Mode Audio Alarm (Web Audio synth + HTML5 Audio element)
+    startAlarmSound();
+    alarmModal.show();
+  }
+
+  function playChimeSynth() {
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const now = audioCtx.currentTime;
+      const freqs = [523.25, 659.25, 783.99, 1046.50]; // Hospital-grade melodic chime C5-E5-G5-C6
+      freqs.forEach((f, idx) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(f, now + idx * 0.12);
+        gain.gain.setValueAtTime(0.25, now + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + idx * 0.12);
+        osc.stop(now + idx * 0.12 + 0.4);
+      });
+    } catch(e) {
+      console.log("AudioContext synth:", e);
+    }
+  }
+
+  function startAlarmSound() {
+    const audioEl = document.getElementById("alarmAudio");
+    if (audioEl) {
+      audioEl.currentTime = 0;
+      audioEl.play().catch(() => {});
+    }
+    playChimeSynth();
+    if (chimeInterval) clearInterval(chimeInterval);
+    chimeInterval = setInterval(playChimeSynth, 2200);
+  }
+
+  function stopAlarmSound() {
+    const audioEl = document.getElementById("alarmAudio");
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.currentTime = 0;
+    }
+    if (chimeInterval) {
+      clearInterval(chimeInterval);
+      chimeInterval = null;
+    }
+  }
+
+  function triggerTestAlarmDemo() {
+    const demoDose = todayDosesList.find(d => d.status === "PENDING") || {
+      id: todayDosesList[0]?.id || 1,
+      medicine_name: "Metformin (Live Demo)",
+      dosage: "500 mg (1 tablet)",
+      scheduled_time: "2026-10-23 Now",
+      instructions: "Take with or immediately after food"
+    };
+    triggerAlarmPopup(demoDose);
+  }
+
+  async function handleAlarmDoseAction(status) {
+    stopAlarmSound();
+    alarmModal.hide();
+
+    if (!currentActiveDose) return;
+
+    try {
+      const resp = await fetch(`/api/doses/${currentActiveDose.id}/action`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status })
+      });
+      const data = await resp.json();
+      showAlert(`Dose logged as ${status}!`, status === "TAKEN" ? "success" : "warning");
+      loadPatientDashboard();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function quickMarkDose(doseId, status) {
+    try {
+      const resp = await fetch(`/api/doses/${doseId}/action`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status })
+      });
+      showAlert(`Dose marked as ${status}`, status === "TAKEN" ? "success" : "warning");
+      loadPatientDashboard();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function snoozeAlarm() {
+    stopAlarmSound();
+    alarmModal.hide();
+    showAlert("Alarm snoozed for 5 minutes.", "info");
+    setTimeout(() => {
+      if (currentActiveDose) triggerAlarmPopup(currentActiveDose);
+    }, 5 * 60 * 1000);
+  }
+</script>
+{% endblock %}

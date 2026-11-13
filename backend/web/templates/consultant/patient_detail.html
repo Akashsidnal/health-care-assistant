@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Care Plan - MediCare Cloud{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+  <div class="col-12">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <a href="/consultant/patients" class="text-decoration-none text-muted small">
+          <i class="bi bi-arrow-left me-1"></i> Back to Patient Directory
+        </a>
+        <h2 class="fw-bold mb-0 mt-1" id="patientNameHeader">Patient Profile</h2>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#prescribeModal">
+          <i class="bi bi-capsule me-1"></i> Prescribe Medicine
+        </button>
+        <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#sendFeedbackModal">
+          <i class="bi bi-chat-heart me-1"></i> Send Advice
+        </button>
+        <a id="exportCsvBtn" href="#" class="btn btn-outline-secondary btn-sm" target="_blank">
+          <i class="bi bi-file-earmark-arrow-down me-1"></i> Export CSV
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Patient Header Card -->
+<div class="card card-custom mb-4">
+  <div class="card-body p-4">
+    <div class="row g-4 align-items-center">
+      <div class="col-md-7">
+        <div class="d-flex align-items-start gap-3">
+          <div class="avatar-circle fs-4" id="patientAvatar">--</div>
+          <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h4 class="fw-bold mb-0" id="patientFullName">--</h4>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="patientCondition">--</span>
+            </div>
+            <div class="text-muted small mt-1" id="patientBio">-- yrs &bull; --</div>
+            <div class="d-flex flex-wrap gap-3 mt-2 small text-muted">
+              <div><i class="bi bi-telephone text-primary me-1"></i> <span id="patientPhone">--</span></div>
+              <div><i class="bi bi-geo-alt text-danger me-1"></i> <span id="patientAddress">--</span></div>
+              <div><i class="bi bi-shield-exclamation text-warning me-1"></i> Emergency: <span id="patientEmergency">--</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-5">
+        <div class="row g-2 text-center">
+          <div class="col-4">
+            <div class="bg-light p-2 rounded border">
+              <small class="text-muted text-uppercase fs-8">Adherence</small>
+              <h4 class="fw-bold mb-0 text-primary mt-1" id="detailAdherencePct">--%</h4>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="bg-light p-2 rounded border">
+              <small class="text-muted text-uppercase fs-8">Taken</small>
+              <h4 class="fw-bold mb-0 text-success mt-1" id="detailTaken">0</h4>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="bg-light p-2 rounded border">
+              <small class="text-muted text-uppercase fs-8">Missed</small>
+              <h4 class="fw-bold mb-0 text-danger mt-1" id="detailMissed">0</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Two-Column Layout -->
+<div class="row g-4">
+  <!-- Left Column: Active Prescriptions -->
+  <div class="col-lg-8">
+    <div class="card card-custom mb-4">
+      <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+        <h5 class="fw-bold mb-0"><i class="bi bi-capsule-pill text-primary me-2"></i>Active Prescriptions &amp; Schedule</h5>
+        <span class="badge bg-light text-dark border" id="medsCountBadge">0 Medications</span>
+      </div>
+      <div class="card-body p-3" id="prescriptionsContainer">
+        <div class="text-center py-4 text-muted">Loading prescriptions...</div>
+      </div>
+    </div>
+
+    <!-- 7-Day Adherence Visual Trend -->
+    <div class="card card-custom">
+      <div class="card-header bg-white py-3 border-bottom">
+        <h5 class="fw-bold mb-0"><i class="bi bi-graph-up-arrow text-success me-2"></i>Past 7 Days Compliance</h5>
+      </div>
+      <div class="card-body">
+        <div style="height: 220px; position: relative;">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Doctor Advice History & Send Form -->
+  <div class="col-lg-4">
+    <!-- Quick Clinical Advice Form -->
+    <div class="card card-custom mb-4 border-start border-4 border-danger">
+      <div class="card-header bg-white py-3 border-bottom">
+        <h5 class="fw-bold mb-0"><i class="bi bi-pencil-square text-danger me-2"></i>Send Clinical Guidance</h5>
+      </div>
+      <div class="card-body p-3">
+        <div class="mb-3">
+          <textarea id="quickAdviceText" class="form-control" rows="3" placeholder="Enter clinical instructions, diet warnings, or dosage adjustments..."></textarea>
+        </div>
+        <div id="quickAdviceAlert"></div>
+        <button class="btn btn-danger btn-sm w-100" onclick="submitQuickAdvice()">
+          <i class="bi bi-send-fill me-1"></i> Send Immediate Note
+        </button>
+      </div>
+    </div>
+
+    <!-- Past Guidance History -->
+    <div class="card card-custom">
+      <div class="card-header bg-white py-3 border-bottom">
+        <h5 class="fw-bold mb-0"><i class="bi bi-chat-heart text-primary me-2"></i>Guidance Sent</h5>
+      </div>
+      <div class="card-body p-3" id="feedbacksContainer" style="max-height: 400px; overflow-y: auto;">
+        <div class="text-center py-4 text-muted">No notes sent yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Prescribe Medicine -->
+<div class="modal fade" id="prescribeModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content card-custom">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="bi bi-capsule text-primary me-2"></i>Add New Prescription</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="prescribeForm" onsubmit="handlePrescribeSubmit(event)">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Medicine Name *</label>
+              <input type="text" name="name" class="form-control" placeholder="e.g. Metformin 500mg" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Dosage Form *</label>
+              <input type="text" name="dosage" class="form-control" placeholder="e.g. 1 Tablet" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Frequency</label>
+              <select name="frequency" class="form-select">
+                <option value="Once daily">Once daily</option>
+                <option value="Twice daily">Twice daily</option>
+                <option value="Three times daily">Three times daily</option>
+                <option value="Every 8 hours">Every 8 hours</option>
+                <option value="As needed">As needed</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Reminder Times (24h comma-separated) *</label>
+              <input type="text" name="times" class="form-control" placeholder="08:00, 20:00" value="08:00" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Total Tablet Count</label>
+              <input type="number" name="tablet_count" class="form-control" value="30">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Days of Week</label>
+              <select name="days_of_week" class="form-select">
+                <option value="EVERY_DAY">Every Day</option>
+                <option value="WEEKDAYS">Mon to Fri</option>
+                <option value="WEEKENDS">Sat &amp; Sun</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Clinical Instructions</label>
+              <input type="text" name="instructions" class="form-control" placeholder="e.g. Take immediately after meals with plenty of water">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Medicine Pill Photo (optional)</label>
+              <input type="file" name="photo" class="form-control" accept="image/*">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Prescription Slip / PDF (optional)</label>
+              <input type="file" name="prescription" class="form-control" accept=".pdf,image/*">
+            </div>
+          </div>
+          <div id="prescribeAlert" class="mt-3"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="prescribeSubmitBtn">Add Prescription</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Send Feedback / Advice -->
+<div class="modal fade" id="sendFeedbackModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content card-custom">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="bi bi-chat-heart text-danger me-2"></i>Send Clinical Guidance Note</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">This message will be instantly delivered to the patient's dashboard and mobile notification center.</p>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Clinical Advice Message</label>
+          <textarea id="modalAdviceText" class="form-control" rows="4" placeholder="Enter clinical instructions, diet warnings, or check-in request..."></textarea>
+        </div>
+        <div id="modalAdviceAlert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="submitModalAdvice()">Send Guidance</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const patientId = {{ patient_id }};
+  let trendChartInstance = null;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    document.getElementById("exportCsvBtn").href = `/api/reports/csv?patient_id=${patientId}`;
+    loadPatientDetail();
+  });
+
+  async function loadPatientDetail() {
+    try {
+      const res = await fetch(`/api/consultant/patients/${patientId}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 403) window.location.href = "/consultant/patients";
+        return;
+      }
+      const data = await res.json();
+      const p = data.patient;
+      const adh = data.adherence;
+
+      // Fill Header
+      document.getElementById("patientNameHeader").textContent = p.full_name;
+      document.getElementById("patientFullName").textContent = p.full_name;
+      document.getElementById("patientAvatar").textContent = p.full_name.split(" ").map(n=>n[0]).join("").substring(0, 2);
+      document.getElementById("patientCondition").textContent = p.disease_condition || "General Patient";
+      document.getElementById("patientBio").textContent = `${p.age || "--"} years &bull; ${p.gender || "Gender N/A"}`;
+      document.getElementById("patientPhone").textContent = p.phone_number || "None";
+      document.getElementById("patientAddress").textContent = p.address || "No address specified";
+      document.getElementById("patientEmergency").textContent = p.emergency_contact || "None specified";
+
+      // Adherence KPIs
+      const overall = adh.overall || {};
+      document.getElementById("detailAdherencePct").textContent = `${overall.percentage || 100}%`;
+      document.getElementById("detailTaken").textContent = overall.taken || 0;
+      document.getElementById("detailMissed").textContent = overall.missed || 0;
+
+      // Render Prescriptions
+      renderPrescriptions(data.medicines || []);
+
+      // Render Feedbacks
+      renderFeedbacks(data.feedbacks || []);
+
+      // Render Trend Chart
+      renderTrendChart(adh.seven_days || []);
+
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function renderPrescriptions(medicines) {
+    const container = document.getElementById("prescriptionsContainer");
+    document.getElementById("medsCountBadge").textContent = `${medicines.length} Medication${medicines.length === 1 ? '' : 's'}`;
+
+    if (medicines.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-capsule fs-2 d-block mb-2"></i>
+          No medications currently prescribed. Click "Prescribe Medicine" above.
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = medicines.map(m => {
+      const times = (m.schedules || []).map(s => `<span class="badge bg-light text-dark border me-1"><i class="bi bi-alarm"></i> ${s.scheduled_time}</span>`).join("");
+      return `
+        <div class="card mb-3 border ${m.is_active ? 'border-primary-subtle' : 'border-secondary-subtle bg-light'}">
+          <div class="card-body p-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-3">
+                <img src="${m.photo_url || '/uploads/default_pill.png'}" alt="Pill" class="rounded border" style="width: 52px; height: 52px; object-fit: cover;">
+                <div>
+                  <div class="d-flex align-items-center gap-2">
+                    <h5 class="fw-bold mb-0">${m.name}</h5>
+                    <span class="badge ${m.is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary text-white'}">
+                      ${m.is_active ? 'Active' : 'Paused'}
+                    </span>
+                  </div>
+                  <div class="small text-muted mt-1">
+                    <strong>Dosage:</strong> ${m.dosage} &bull; 
+                    <strong>Frequency:</strong> ${m.frequency || "Daily"} &bull; 
+                    <strong>Tablets:</strong> ${m.tablet_count}
+                  </div>
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                ${m.prescription_doc ? `
+                  <a href="${m.prescription_url}" target="_blank" class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-paperclip"></i> Rx Doc
+                  </a>
+                ` : ''}
+                <button class="btn ${m.is_active ? 'btn-outline-warning' : 'btn-outline-success'} btn-sm" onclick="toggleMedicineStatus(${m.id}, ${m.is_active})">
+                  ${m.is_active ? '<i class="bi bi-pause-fill"></i> Pause' : '<i class="bi bi-play-fill"></i> Resume'}
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteMedicine(${m.id})">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-3 pt-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div>
+                <small class="text-muted fw-semibold me-2">Times:</small>
+                ${times || '<span class="text-muted small">No scheduled times</span>'}
+              </div>
+              ${m.instructions ? `<div class="small text-muted"><i class="bi bi-info-circle me-1"></i>${m.instructions}</div>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderFeedbacks(feedbacks) {
+    const container = document.getElementById("feedbacksContainer");
+    if (feedbacks.length === 0) {
+      container.innerHTML = `<div class="text-center py-4 text-muted small">No guidance sent yet. Use form above to send notes.</div>`;
+      return;
+    }
+
+    container.innerHTML = feedbacks.map(f => {
+      const dateStr = new Date(f.created_at).toLocaleDateString("en-US", {
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+      return `
+        <div class="p-2 mb-2 rounded bg-light border">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="badge ${f.is_read ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'} fs-8">
+              ${f.is_read ? '<i class="bi bi-check2-all"></i> Seen' : '<i class="bi bi-clock"></i> Unread'}
+            </span>
+            <span class="text-muted fs-8">${dateStr}</span>
+          </div>
+          <p class="small mb-0 text-dark">${f.message}</p>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderTrendChart(sevenDays) {
+    const ctx = document.getElementById("trendChart");
+    if (!ctx) return;
+
+    const labels = sevenDays.map(d => d.date);
+    const taken = sevenDays.map(d => d.taken);
+    const missed = sevenDays.map(d => d.missed);
+    const skipped = sevenDays.map(d => d.skipped);
+
+    if (trendChartInstance) trendChartInstance.destroy();
+
+    trendChartInstance = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          { label: "Taken", data: taken, backgroundColor: "#10b981" },
+          { label: "Skipped", data: skipped, backgroundColor: "#f59e0b" },
+          { label: "Missed", data: missed, backgroundColor: "#ef4444" }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true },
+          y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } }
+        }
+      }
+    });
+  }
+
+  async function toggleMedicineStatus(medId, currentActive) {
+    const action = currentActive ? "pause" : "resume";
+    try {
+      const res = await fetch(`/api/medicines/${medId}/${action}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showAlert(`Medication ${action}d successfully`, "info");
+        loadPatientDetail();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function deleteMedicine(medId) {
+    if (!confirm("Are you sure you want to remove this prescription?")) return;
+    try {
+      const res = await fetch(`/api/medicines/${medId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showAlert("Prescription removed", "warning");
+        loadPatientDetail();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handlePrescribeSubmit(e) {
+    e.preventDefault();
+    const form = document.getElementById("prescribeForm");
+    const formData = new FormData(form);
+    formData.append("patient_id", patientId);
+
+    const alertDiv = document.getElementById("prescribeAlert");
+    const btn = document.getElementById("prescribeSubmitBtn");
+    btn.disabled = true;
+
+    try {
+      const res = await fetch("/api/medicines", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      btn.disabled = false;
+
+      if (res.ok) {
+        alertDiv.innerHTML = `<div class="alert alert-success py-2 small">Prescription added successfully!</div>`;
+        setTimeout(() => {
+          const modal = bootstrap.Modal.getInstance(document.getElementById("prescribeModal"));
+          if (modal) modal.hide();
+          form.reset();
+          alertDiv.innerHTML = "";
+          loadPatientDetail();
+        }, 1000);
+      } else {
+        alertDiv.innerHTML = `<div class="alert alert-danger py-2 small">${data.error || "Failed to add prescription"}</div>`;
+      }
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false;
+      alertDiv.innerHTML = `<div class="alert alert-danger py-2 small">Network error.</div>`;
+    }
+  }
+
+  async function submitQuickAdvice() {
+    const text = document.getElementById("quickAdviceText").value.trim();
+    const alertDiv = document.getElementById("quickAdviceAlert");
+    if (!text) return;
+
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ patient_id: patientId, message: text })
+      });
+      if (res.ok) {
+        document.getElementById("quickAdviceText").value = "";
+        alertDiv.innerHTML = `<div class="alert alert-success py-1 small">Advice sent!</div>`;
+        setTimeout(() => alertDiv.innerHTML = "", 2000);
+        loadPatientDetail();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function submitModalAdvice() {
+    const text = document.getElementById("modalAdviceText").value.trim();
+    const alertDiv = document.getElementById("modalAdviceAlert");
+    if (!text) return;
+
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ patient_id: patientId, message: text })
+      });
+      if (res.ok) {
+        alertDiv.innerHTML = `<div class="alert alert-success py-1 small">Guidance note sent!</div>`;
+        setTimeout(() => {
+          const modal = bootstrap.Modal.getInstance(document.getElementById("sendFeedbackModal"));
+          if (modal) modal.hide();
+          document.getElementById("modalAdviceText").value = "";
+          alertDiv.innerHTML = "";
+          loadPatientDetail();
+        }, 1000);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+</script>
+{% endblock %}

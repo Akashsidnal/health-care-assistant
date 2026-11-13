@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}Clinical Audit Reports - MediCare Cloud{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-file-earmark-bar-graph-fill text-primary me-2"></i>Clinical Adherence Reports</h2>
+        <p class="text-muted mb-0">Generate, audit, and export patient medication compliance records for institutional reporting.</p>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+          <i class="bi bi-printer me-1"></i> Print / PDF
+        </button>
+        <button id="downloadCsvBtn" class="btn btn-primary btn-sm" onclick="downloadCsv()">
+          <i class="bi bi-download me-1"></i> Export CSV
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Generator Controls -->
+<div class="card card-custom mb-4">
+  <div class="card-body p-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold small">Select Patient</label>
+        <select id="patientSelect" class="form-select" onchange="generateReport()">
+          <option value="">Choose a patient...</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold small">Start Date</label>
+        <input type="date" id="startDateInput" class="form-control" onchange="generateReport()">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold small">End Date</label>
+        <input type="date" id="endDateInput" class="form-control" onchange="generateReport()">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100" onclick="generateReport()">
+          <i class="bi bi-arrow-repeat me-1"></i> Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Paper Section (Printable) -->
+<div id="reportSection" class="card card-custom p-4 mb-4" style="display: none;">
+  <!-- Header with Clinical Seal -->
+  <div class="border-bottom pb-3 mb-4">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h3 class="fw-bold text-dark mb-0"><i class="bi bi-heart-pulse-fill text-danger me-2"></i>MediCare Cloud</h3>
+        <div class="text-muted small">Smart Healthcare Monitoring &amp; Medication Reminder System</div>
+        <div class="text-muted fs-8">Department of Information Science and Engineering &bull; City Engineering College</div>
+      </div>
+      <div class="text-end">
+        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-bold">OFFICIAL CLINICAL AUDIT</span>
+        <div class="text-muted fs-8 mt-1" id="reportGeneratedDate">Generated: --</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Patient & Physician Metadata -->
+  <div class="row g-3 mb-4 bg-light p-3 rounded border">
+    <div class="col-md-6">
+      <h6 class="text-uppercase text-muted fw-bold fs-8 mb-2">Patient Details</h6>
+      <div class="fw-bold fs-5" id="repPatientName">--</div>
+      <div class="text-muted small" id="repPatientInfo">--</div>
+      <div class="text-muted small">Contact: <span id="repPatientPhone">--</span></div>
+      <div class="text-muted small">Diagnosis: <span class="fw-semibold text-dark" id="repPatientCondition">--</span></div>
+    </div>
+    <div class="col-md-6 text-md-end">
+      <h6 class="text-uppercase text-muted fw-bold fs-8 mb-2">Attending Consultant</h6>
+      <div class="fw-bold fs-5" id="repConsultantName">--</div>
+      <div class="text-muted small" id="repConsultantSpecialty">--</div>
+      <div class="text-muted small" id="repDateRange">Date Range: All Time</div>
+    </div>
+  </div>
+
+  <!-- Adherence KPI Grid -->
+  <div class="row g-3 mb-4 text-center">
+    <div class="col-6 col-md-3">
+      <div class="p-3 border rounded bg-white">
+        <small class="text-muted text-uppercase fw-semibold fs-8">Adherence Score</small>
+        <h2 class="fw-bold text-primary mt-1 mb-0" id="repHdrPct">--%</h2>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="p-3 border rounded bg-white">
+        <small class="text-muted text-uppercase fw-semibold fs-8">Doses Taken</small>
+        <h2 class="fw-bold text-success mt-1 mb-0" id="repHdrTaken">0</h2>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="p-3 border rounded bg-white">
+        <small class="text-muted text-uppercase fw-semibold fs-8">Doses Skipped</small>
+        <h2 class="fw-bold text-warning mt-1 mb-0" id="repHdrSkipped">0</h2>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="p-3 border rounded bg-white">
+        <small class="text-muted text-uppercase fw-semibold fs-8">Doses Missed</small>
+        <h2 class="fw-bold text-danger mt-1 mb-0" id="repHdrMissed">0</h2>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Medicines List -->
+  <h6 class="fw-bold text-dark mb-2"><i class="bi bi-capsule me-1 text-primary"></i>Prescribed Regimen</h6>
+  <div class="table-responsive mb-4">
+    <table class="table table-bordered table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Medication</th>
+          <th>Dosage</th>
+          <th>Frequency</th>
+          <th>Schedules</th>
+          <th>Instructions</th>
+        </tr>
+      </thead>
+      <tbody id="repMedicinesTable">
+        <tr><td colspan="5" class="text-center py-2 text-muted">No medications on file.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Signoff Section -->
+  <div class="row mt-5 pt-4 border-top">
+    <div class="col-6">
+      <div class="small text-muted">System Verified By:</div>
+      <div class="fw-bold mt-3">MediCare Cloud Adherence Engine</div>
+      <div class="text-muted fs-8">Automated Grace-Period Evaluation</div>
+    </div>
+    <div class="col-6 text-end">
+      <div class="small text-muted">Authorized Physician Sign-off:</div>
+      <div class="fw-bold mt-3" id="repSignDoctor">Dr. __________________</div>
+      <div class="text-muted fs-8">City Engineering College Clinical Partner</div>
+    </div>
+  </div>
+</div>
+
+<!-- Placeholder when no patient selected -->
+<div id="noSelectionPlaceholder" class="card card-custom text-center py-5">
+  <div class="card-body">
+    <i class="bi bi-file-earmark-medical fs-1 text-muted d-block mb-3"></i>
+    <h5 class="fw-bold text-dark">No Patient Selected</h5>
+    <p class="text-muted small mb-0">Select an enrolled patient from the dropdown above to compile their compliance report.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let selectedPatientId = null;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    loadPatientList();
+  });
+
+  async function loadPatientList() {
+    const select = document.getElementById("patientSelect");
+    try {
+      const res = await fetch("/api/consultant/patients", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const patients = await res.json();
+
+      patients.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = `${p.full_name} (${p.disease_condition || "General"})`;
+        select.appendChild(opt);
+      });
+
+      if (patients.length > 0) {
+        select.value = patients[0].id;
+        generateReport();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function generateReport() {
+    const patientId = document.getElementById("patientSelect").value;
+    if (!patientId) {
+      document.getElementById("reportSection").style.display = "none";
+      document.getElementById("noSelectionPlaceholder").style.display = "block";
+      return;
+    }
+
+    selectedPatientId = patientId;
+    const startDate = document.getElementById("startDateInput").value;
+    const endDate = document.getElementById("endDateInput").value;
+
+    let url = `/api/reports/summary/${patientId}?`;
+    if (startDate) url += `start_date=${startDate}&`;
+    if (endDate) url += `end_date=${endDate}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      document.getElementById("noSelectionPlaceholder").style.display = "none";
+      document.getElementById("reportSection").style.display = "block";
+
+      document.getElementById("reportGeneratedDate").textContent = `Generated: ${new Date().toLocaleString()}`;
+      document.getElementById("repPatientName").textContent = data.patient.full_name;
+      document.getElementById("repPatientInfo").textContent = `${data.patient.age || "--"} yrs &bull; ${data.patient.gender || "--"}`;
+      document.getElementById("repPatientPhone").textContent = data.patient.phone_number || "--";
+      document.getElementById("repPatientCondition").textContent = data.patient.disease_condition || "General";
+
+      if (data.consultant) {
+        document.getElementById("repConsultantName").textContent = data.consultant.full_name;
+        document.getElementById("repConsultantSpecialty").textContent = `${data.consultant.specialization || "Physician"} &bull; ${data.consultant.clinic_name || ""}`;
+        document.getElementById("repSignDoctor").textContent = data.consultant.full_name;
+      }
+
+      document.getElementById("repDateRange").textContent = `Period: ${data.date_range.start} to ${data.date_range.end}`;
+
+      const adh = data.adherence || {};
+      document.getElementById("repHdrPct").textContent = `${adh.percentage || 100}%`;
+      document.getElementById("repHdrTaken").textContent = adh.taken || 0;
+      document.getElementById("repHdrSkipped").textContent = adh.skipped || 0;
+      document.getElementById("repHdrMissed").textContent = adh.missed || 0;
+
+      // Table
+      const medsTbody = document.getElementById("repMedicinesTable");
+      if (!data.medicines || data.medicines.length === 0) {
+        medsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-2 text-muted">No medications prescribed.</td></tr>`;
+      } else {
+        medsTbody.innerHTML = data.medicines.map(m => {
+          const times = (m.schedules || []).map(s => s.scheduled_time).join(", ");
+          return `
+            <tr>
+              <td class="fw-semibold">${m.name}</td>
+              <td>${m.dosage}</td>
+              <td>${m.frequency || "Daily"}</td>
+              <td>${times || "N/A"}</td>
+              <td>${m.instructions || "--"}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function downloadCsv() {
+    if (!selectedPatientId) {
+      alert("Please choose a patient first.");
+      return;
+    }
+    const startDate = document.getElementById("startDateInput").value;
+    const endDate = document.getElementById("endDateInput").value;
+    let url = `/api/reports/csv?patient_id=${selectedPatientId}`;
+    if (startDate) url += `&start_date=${startDate}`;
+    if (endDate) url += `&end_date=${endDate}`;
+    window.location.href = url;
+  }
+</script>
+{% endblock %}
